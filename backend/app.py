@@ -1,3 +1,5 @@
+import os
+import platform
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
@@ -9,7 +11,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-import os
 from typing import Optional
 
 app = FastAPI(title="Viewer Bot API", description="A simple viewer bot for websites", version="1.0.0")
@@ -87,6 +88,68 @@ class ViewerBot:
         self.is_running = False
         self.current_iteration = 0
         
+    def get_chrome_options(self):
+        """Get Chrome options based on environment"""
+        chrome_options = Options()
+        
+        # Detect if running in Docker
+        is_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
+        is_windows = platform.system() == 'Windows'
+        
+        print(f"Environment: Docker={is_docker}, Windows={is_windows}")
+        
+        # Basic headless setup
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        
+        # Essential flags that don't break functionality
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--window-size=1920,1080")
+        
+        # Set user data directory based on environment
+        if is_docker:
+            chrome_options.add_argument("--user-data-dir=/app/chrome-data")
+            chrome_options.add_argument("--remote-debugging-port=9222")
+            user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        elif is_windows:
+            # Use a temporary directory for Windows
+            import tempfile
+            temp_dir = tempfile.mkdtemp()
+            chrome_options.add_argument(f"--user-data-dir={temp_dir}")
+            chrome_options.add_argument("--remote-debugging-port=9222")
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebDriver/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        else:
+            # Linux/Mac
+            chrome_options.add_argument("--user-data-dir=/tmp/chrome-data")
+            chrome_options.add_argument("--remote-debugging-port=9222")
+            user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        
+        chrome_options.add_argument(f"--user-agent={user_agent}")
+        chrome_options.add_argument("--profile-directory=Default")
+        
+        # IMPORTANT: Keep JavaScript and images enabled for proper analytics
+        # DO NOT add: --disable-javascript, --disable-images
+        
+        # Prefs for a more realistic browser
+        prefs = {
+            "profile.default_content_setting_values": {
+                "notifications": 2,
+                "geolocation": 2,
+                "media_stream": 2,
+            }
+        }
+        chrome_options.add_experimental_option("prefs", prefs)
+        
+        # Anti-detection measures
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        
+        return chrome_options
+        
     def run(self, task_id):
         """Run the viewer bot with progress tracking"""
         self.is_running = True
@@ -97,83 +160,73 @@ class ViewerBot:
             'message': 'Starting browser...'
         }
         
-        # Chrome options for Docker environment
-        chrome_options = Options()
-        
-        # Essential Chrome arguments for Docker/headless environment
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-plugins")
-        chrome_options.add_argument("--disable-images")
-        chrome_options.add_argument("--disable-javascript")
-        chrome_options.add_argument("--disable-web-security")
-        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-background-timer-throttling")
-        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-        chrome_options.add_argument("--disable-renderer-backgrounding")
-        chrome_options.add_argument("--disable-field-trial-config")
-        chrome_options.add_argument("--disable-ipc-flooding-protection")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("--remote-debugging-port=9222")
-        
-        # Use a temporary user data directory in Docker
-        chrome_options.add_argument("--user-data-dir=/app/chrome-data")
-        chrome_options.add_argument("--profile-directory=Default")
-        
-        # Additional performance optimizations
-        chrome_options.add_argument("--memory-pressure-off")
-        chrome_options.add_argument("--max_old_space_size=4096")
-        
-        # Set user agent to avoid detection
-        chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        
-        # Prefs to disable notifications, location, etc.
-        prefs = {
-            "profile.default_content_setting_values": {
-                "notifications": 2,
-                "geolocation": 2,
-                "media_stream": 2,
-            },
-            "profile.managed_default_content_settings": {
-                "images": 2
-            }
-        }
-        chrome_options.add_experimental_option("prefs", prefs)
-        
-        # Exclude automation switches
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
+        # Get Chrome options for current environment
+        chrome_options = self.get_chrome_options()
         
         try:
             # Try to create Chrome driver
+            print("Creating Chrome driver...")
             driver = webdriver.Chrome(options=chrome_options)
             
-            # Execute script to remove webdriver property
+            # Execute script to remove webdriver property (anti-detection)
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            print("Chrome driver created successfully")
             
         except Exception as e:
             print(f"Failed to create Chrome driver: {e}")
-            running_tasks[task_id] = {
-                'status': 'error',
-                'current': 0,
-                'total': self.iterations,
-                'message': f'Failed to start browser: {str(e)}'
-            }
-            return
+            print("Trying with minimal fallback options...")
+            
+            # Fallback with minimal options (like original try.py)
+            chrome_options = Options()
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--remote-debugging-port=9223")
+            
+            try:
+                driver = webdriver.Chrome(options=chrome_options)
+                print("Fallback Chrome driver created successfully")
+            except Exception as fallback_error:
+                print(f"Fallback also failed: {fallback_error}")
+                running_tasks[task_id] = {
+                    'status': 'error',
+                    'current': 0,
+                    'total': self.iterations,
+                    'message': f'Failed to start browser: {str(fallback_error)}'
+                }
+                return
         
         try:
             for i in range(self.iterations):
                 if not self.is_running:
                     break
-                    
-                driver.get(self.url)
-                self.current_iteration = i + 1
                 
+                # Navigate to the URL
+                print(f"[{i+1}/{self.iterations}] Visiting: {self.url}")
+                driver.get(self.url)
+                
+                # Wait for page to load properly (important for analytics)
+                time.sleep(3)
+                
+                # Simulate real user behavior
+                try:
+                    # Scroll down a bit to simulate reading
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight/4);")
+                    time.sleep(1)
+                    
+                    # Scroll to middle
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
+                    time.sleep(1)
+                    
+                    # Scroll back to top
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(1)
+                except Exception as scroll_error:
+                    print(f"Scroll simulation failed: {scroll_error}")
+                    pass
+                
+                self.current_iteration = i + 1
                 delay = random.uniform(self.min_delay, self.max_delay)
                 
                 # Update progress
@@ -184,9 +237,11 @@ class ViewerBot:
                     'message': f'Visit {self.current_iteration}/{self.iterations} - Next delay: {delay:.2f}s'
                 }
                 
+                print(f"[{i+1}/{self.iterations}] Opened → sleeping for {delay:.2f}s")
                 time.sleep(delay)
                 
         except Exception as e:
+            print(f"Error during execution: {e}")
             running_tasks[task_id] = {
                 'status': 'error',
                 'current': self.current_iteration,
@@ -196,7 +251,9 @@ class ViewerBot:
         finally:
             try:
                 driver.quit()
-            except:
+                print("✅ Browser closed")
+            except Exception as quit_error:
+                print(f"Error closing browser: {quit_error}")
                 pass
             
             if self.is_running:
@@ -206,6 +263,7 @@ class ViewerBot:
                     'total': self.iterations,
                     'message': f'✅ Completed all {self.iterations} visits!'
                 }
+                print(f"✅ Finished all {self.iterations} iterations")
             else:
                 running_tasks[task_id] = {
                     'status': 'stopped',

@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Use Ubuntu 22.04 LTS as base (more stable package availability)
+FROM ubuntu:22.04
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -11,6 +11,9 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
     wget \
     curl \
     unzip \
@@ -49,12 +52,15 @@ RUN apt-get update && apt-get install -y \
 
 # Install ChromeDriver
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d. -f1-3) \
+    && echo "Chrome version: $CHROME_VERSION" \
     && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}") \
+    && echo "ChromeDriver version: $CHROMEDRIVER_VERSION" \
     && wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" \
     && unzip /tmp/chromedriver.zip -d /tmp/ \
     && mv /tmp/chromedriver /usr/local/bin/chromedriver \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm /tmp/chromedriver.zip
+    && rm /tmp/chromedriver.zip \
+    && chromedriver --version
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
@@ -62,14 +68,11 @@ RUN useradd --create-home --shell /bin/bash app \
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --upgrade pip \
+    && pip3 install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
-
-# Make start script executable
-RUN chmod +x start.sh
 
 # Change ownership of the app directory to the app user
 RUN chown -R app:app /app
@@ -88,4 +91,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
 # Run the application
-CMD ["./start.sh"]
+CMD ["python3", "app.py"]

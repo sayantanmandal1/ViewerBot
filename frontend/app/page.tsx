@@ -147,7 +147,7 @@ export default function ViewerBot() {
                 placeholder="https://example.com or github.com/username"
                 required
                 disabled={isLoading || !!currentTask}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
               />
             </div>
 
@@ -166,14 +166,14 @@ export default function ViewerBot() {
                 max="10000"
                 required
                 disabled={isLoading || !!currentTask}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
               />
             </div>
 
             {/* Delay Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="minDelay" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="minDelay" className="block text-sm font-semibold text-black mb-2">
                   Min Delay (seconds)
                 </label>
                 <input
@@ -186,12 +186,12 @@ export default function ViewerBot() {
                   step="0.1"
                   required
                   disabled={isLoading || !!currentTask}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
                 />
               </div>
 
               <div>
-                <label htmlFor="maxDelay" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="maxDelay" className="block text-sm font-semibold text-black mb-2">
                   Max Delay (seconds)
                 </label>
                 <input
@@ -204,7 +204,7 @@ export default function ViewerBot() {
                   step="0.1"
                   required
                   disabled={isLoading || !!currentTask}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
                 />
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function ViewerBot() {
                     <span className="text-red-500">⚠️</span>
                   </div>
                   <div className="ml-3">
-                    <p className="text-red-700 text-sm">{error}</p>
+                    <p className="text-black text-sm">{error}</p>
                   </div>
                 </div>
               </div>
@@ -250,7 +250,7 @@ export default function ViewerBot() {
             <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
               {/* Status Header */}
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-800">Bot Status</h3>
+                <h3 className="text-lg font-semibold text-black">Bot Status</h3>
                 <span className={`px-3 py-1 rounded-full text-white text-xs font-semibold uppercase ${getStatusColor()}`}>
                   {taskStatus.status}
                 </span>
@@ -258,7 +258,7 @@ export default function ViewerBot() {
 
               {/* Progress Bar */}
               <div className="mb-4">
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <div className="flex justify-between text-sm text-black mb-2">
                   <span>{taskStatus.current} / {taskStatus.total} views</span>
                   <span>{getProgressPercentage()}%</span>
                 </div>
@@ -271,7 +271,7 @@ export default function ViewerBot() {
               </div>
 
               {/* Status Message */}
-              <div className="text-gray-600 text-sm italic">
+              <div className="text-black text-sm italic">
                 {taskStatus.message}
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function ViewerBot() {
 
         {/* Footer */}
         <div className="text-center mt-8 pt-6 border-t border-gray-200">
-          <p className="text-gray-500 text-sm">Built with Next.js + FastAPI • Use responsibly</p>
+          <p className="text-black text-sm">Built with Next.js + FastAPI • Use responsibly</p>
         </div>
       </div>
     </div>

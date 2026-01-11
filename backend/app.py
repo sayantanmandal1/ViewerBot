@@ -97,39 +97,74 @@ class ViewerBot:
             'message': 'Starting browser...'
         }
         
-        # Chrome profile path (Windows)
-        CHROME_PROFILE_PATH = r"C:\Users\msaya\AppData\Local\Google\Chrome\User Data"
-        PROFILE_NAME = "Default"
-        
+        # Chrome options for Docker environment
         chrome_options = Options()
+        
+        # Essential Chrome arguments for Docker/headless environment
         chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}\\Selenium")
-        chrome_options.add_argument(f"--profile-directory={PROFILE_NAME}")
-        chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-plugins")
         chrome_options.add_argument("--disable-images")
         chrome_options.add_argument("--disable-javascript")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-background-timer-throttling")
+        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+        chrome_options.add_argument("--disable-renderer-backgrounding")
+        chrome_options.add_argument("--disable-field-trial-config")
+        chrome_options.add_argument("--disable-ipc-flooding-protection")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--remote-debugging-port=9222")
         
+        # Use a temporary user data directory in Docker
+        chrome_options.add_argument("--user-data-dir=/app/chrome-data")
+        chrome_options.add_argument("--profile-directory=Default")
+        
+        # Additional performance optimizations
+        chrome_options.add_argument("--memory-pressure-off")
+        chrome_options.add_argument("--max_old_space_size=4096")
+        
+        # Set user agent to avoid detection
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        
+        # Prefs to disable notifications, location, etc.
+        prefs = {
+            "profile.default_content_setting_values": {
+                "notifications": 2,
+                "geolocation": 2,
+                "media_stream": 2,
+            },
+            "profile.managed_default_content_settings": {
+                "images": 2
+            }
+        }
+        chrome_options.add_experimental_option("prefs", prefs)
+        
+        # Exclude automation switches
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        
         try:
+            # Try to create Chrome driver
             driver = webdriver.Chrome(options=chrome_options)
+            
+            # Execute script to remove webdriver property
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
         except Exception as e:
             print(f"Failed to create Chrome driver: {e}")
-            print("Trying with minimal options...")
-            
-            # Fallback with minimal options
-            chrome_options = Options()
-            chrome_options.add_argument("--headless=new")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--remote-debugging-port=9223")
-            
-            driver = webdriver.Chrome(options=chrome_options)
+            running_tasks[task_id] = {
+                'status': 'error',
+                'current': 0,
+                'total': self.iterations,
+                'message': f'Failed to start browser: {str(e)}'
+            }
+            return
         
         try:
             for i in range(self.iterations):
@@ -159,7 +194,11 @@ class ViewerBot:
                 'message': f'Error: {str(e)}'
             }
         finally:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
+            
             if self.is_running:
                 running_tasks[task_id] = {
                     'status': 'completed',

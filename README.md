@@ -30,7 +30,26 @@ viewer-bot/
 
 ## Setup Instructions
 
-### Backend Setup
+### Option 1: Docker Deployment (Recommended for Production)
+
+#### Quick Start with Docker Compose
+```bash
+cd backend
+docker-compose up --build
+```
+
+The API will be available at `http://localhost:8000`
+
+#### Manual Docker Build
+```bash
+cd backend
+docker build -t viewer-bot-api .
+docker run -p 8000:8000 viewer-bot-api
+```
+
+### Option 2: Local Development Setup
+
+#### Backend Setup
 
 1. Navigate to the backend directory:
 ```bash
@@ -41,6 +60,7 @@ cd backend
 ```bash
 python -m venv venv
 venv\Scripts\activate  # On Windows
+source venv/bin/activate  # On Linux/Mac
 ```
 
 3. Install dependencies:
@@ -55,7 +75,7 @@ python app.py
 
 The backend will be available at `http://localhost:8000`
 
-### Frontend Setup
+#### Frontend Setup
 
 1. Navigate to the frontend directory:
 ```bash
@@ -108,10 +128,26 @@ The frontend will be available at `http://localhost:3000`
 
 ## Requirements
 
+### For Docker Deployment (Recommended)
+- Docker and Docker Compose
+- 2GB+ RAM for Chrome in container
+- Internet connection for downloading Chrome/ChromeDriver
+
+### For Local Development
 - Python 3.7+
 - Node.js 18+
-- Chrome browser installed
-- Chrome WebDriver (automatically managed by Selenium)
+- Chrome browser installed (for local development only)
+
+## Docker Features
+
+The Docker setup includes:
+- ✅ **Latest Chrome & ChromeDriver** - Automatically installed and configured
+- ✅ **Headless operation** - Optimized for server environments
+- ✅ **Security hardened** - Runs as non-root user with minimal privileges
+- ✅ **Health checks** - Built-in monitoring and auto-restart
+- ✅ **Resource limits** - Configurable CPU/memory constraints
+- ✅ **Persistent storage** - Chrome data preserved across restarts
+- ✅ **Production ready** - Suitable for cloud deployment
 
 ## Important Notes
 

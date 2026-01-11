@@ -126,8 +126,8 @@ export default function ViewerBot() {
       <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-2xl w-full">
         {/* Header */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-800 mb-3">🚀 Viewer Bot</h1>
-          <p className="text-gray-600 text-lg">Increase website views automatically</p>
+          <h1 className="text-4xl font-bold text-black mb-3">🚀 Viewer Bot</h1>
+          <p className="text-black text-lg">Increase website views automatically</p>
         </div>
 
         <div className="space-y-8">

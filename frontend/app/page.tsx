@@ -135,7 +135,7 @@ export default function ViewerBot() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* URL Input */}
             <div>
-              <label htmlFor="url" className="block text-sm font-semibold text-gray-700 mb-2">
+              <label htmlFor="url" className="block text-sm font-semibold text-black mb-2">
                 Website URL
               </label>
               <input
@@ -153,7 +153,7 @@ export default function ViewerBot() {
 
             {/* Iterations Input */}
             <div>
-              <label htmlFor="iterations" className="block text-sm font-semibold text-gray-700 mb-2">
+              <label htmlFor="iterations" className="block text-sm font-semibold text-black mb-2">
                 Number of Views
               </label>
               <input

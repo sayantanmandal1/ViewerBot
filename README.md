@@ -1,0 +1,147 @@
+# Viewer Bot Application
+
+A full-stack web application that automates website visits using Selenium WebDriver. Built with Next.js frontend and FastAPI backend.
+
+## Features
+
+- 🚀 Modern Next.js interface with Tailwind CSS
+- 📊 Real-time progress tracking
+- ⚙️ Customizable delay settings
+- 🛑 Start/stop functionality
+- 📱 Responsive design
+- 🎨 Beautiful gradient UI with smooth animations
+
+## Project Structure
+
+```
+viewer-bot/
+├── backend/
+│   ├── app.py              # FastAPI backend
+│   └── requirements.txt    # Python dependencies
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx        # Main viewer bot component
+│   │   ├── layout.tsx      # Root layout
+│   │   └── globals.css     # Tailwind CSS
+│   └── package.json        # Next.js dependencies
+├── try.py                  # Original script
+└── README.md
+```
+
+## Setup Instructions
+
+### Backend Setup
+
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+venv\Scripts\activate  # On Windows
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Run the FastAPI server:
+```bash
+python app.py
+```
+
+The backend will be available at `http://localhost:8000`
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000`
+
+## Usage
+
+1. Open your browser and go to `http://localhost:3000`
+2. Enter the website URL you want to visit
+3. Set the number of views you want to generate
+4. Adjust the min/max delay between visits (default: 1-5 seconds)
+5. Click "Start Bot" to begin
+6. Monitor progress in real-time with the animated progress bar
+7. Click "Stop Bot" to halt the process
+
+## API Endpoints
+
+- `POST /api/start` - Start a new bot task
+- `GET /api/status/{task_id}` - Get task status
+- `POST /api/stop/{task_id}` - Stop a running task
+- `GET /api/health` - Health check
+- `GET /docs` - FastAPI automatic documentation
+
+## Tech Stack
+
+### Frontend
+- **Next.js 16** - React framework with App Router
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Utility-first styling
+- **Axios** - HTTP client
+
+### Backend
+- **FastAPI** - Modern Python web framework
+- **Pydantic** - Data validation
+- **Selenium** - Web automation
+- **Uvicorn** - ASGI server
+
+## Requirements
+
+- Python 3.7+
+- Node.js 18+
+- Chrome browser installed
+- Chrome WebDriver (automatically managed by Selenium)
+
+## Important Notes
+
+- Use this tool responsibly and in accordance with website terms of service
+- The bot runs in headless mode for better performance
+- Maximum 10,000 iterations per session for safety
+- Minimum delay of 0.1 seconds between requests
+- Built with modern web technologies for optimal performance
+
+## Development
+
+To run in development mode:
+
+```bash
+# Backend (Terminal 1)
+cd backend
+python app.py
+
+# Frontend (Terminal 2)
+cd frontend
+npm run dev
+```
+
+## Troubleshooting
+
+If you encounter Chrome WebDriver issues:
+1. Make sure Chrome browser is installed
+2. Check that your Chrome profile path is correct in the backend code
+3. Try running with minimal Chrome options (fallback is built-in)
+
+## License
+
+This project is for educational purposes only. Use responsibly.

@@ -70,6 +70,7 @@ RUN pip3 install --no-cache-dir --upgrade pip \
 # Copy application code
 COPY . .
 
+
 # Change ownership of the app directory to the app user
 RUN chown -R app:app /app
 

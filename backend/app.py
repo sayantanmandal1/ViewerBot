@@ -11,6 +11,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 from typing import Optional
 
 app = FastAPI(title="Viewer Bot API", description="A simple viewer bot for websites", version="1.0.0")
@@ -164,9 +165,10 @@ class ViewerBot:
         chrome_options = self.get_chrome_options()
         
         try:
-            # Try to create Chrome driver
+            # Try to create Chrome driver with webdriver-manager
             print("Creating Chrome driver...")
-            driver = webdriver.Chrome(options=chrome_options)
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # Execute script to remove webdriver property (anti-detection)
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -185,7 +187,8 @@ class ViewerBot:
             chrome_options.add_argument("--remote-debugging-port=9223")
             
             try:
-                driver = webdriver.Chrome(options=chrome_options)
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=chrome_options)
                 print("Fallback Chrome driver created successfully")
             except Exception as fallback_error:
                 print(f"Fallback also failed: {fallback_error}")

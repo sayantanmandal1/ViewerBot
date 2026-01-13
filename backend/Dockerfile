@@ -50,13 +50,8 @@ RUN apt-get update && apt-get install -y \
     google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver - use a fixed version that's known to work
-RUN wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip" \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm /tmp/chromedriver.zip \
-    && chromedriver --version || echo "ChromeDriver installed"
+# ChromeDriver will be managed by webdriver-manager at runtime
+# No need to install a fixed version
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app \

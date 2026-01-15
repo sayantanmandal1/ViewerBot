@@ -3,7 +3,6 @@ import platform
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
-import random
 import time
 import asyncio
 import threading
@@ -29,8 +28,6 @@ app.add_middleware(
 class BotStartRequest(BaseModel):
     url: str
     iterations: int = 100
-    minDelay: float = 1.0
-    maxDelay: float = 5.0
     
     @validator('url')
     def validate_url(cls, v):
@@ -46,26 +43,12 @@ class BotStartRequest(BaseModel):
         if v <= 0 or v > 10000:
             raise ValueError('Iterations must be between 1 and 10000')
         return v
-    
-    @validator('minDelay', 'maxDelay')
-    def validate_delays(cls, v):
-        if v < 0.1:
-            raise ValueError('Delay must be at least 0.1 seconds')
-        return v
-    
-    @validator('maxDelay')
-    def validate_max_delay(cls, v, values):
-        if 'minDelay' in values and v < values['minDelay']:
-            raise ValueError('maxDelay must be greater than or equal to minDelay')
-        return v
 
 class BotStartResponse(BaseModel):
     taskId: str
     message: str
     url: str
     iterations: int
-    minDelay: float
-    maxDelay: float
 
 class TaskStatus(BaseModel):
     status: str
@@ -81,11 +64,9 @@ class HealthResponse(BaseModel):
 running_tasks = {}
 
 class ViewerBot:
-    def __init__(self, url, iterations, min_delay=1, max_delay=5):
+    def __init__(self, url, iterations):
         self.url = url
         self.iterations = iterations
-        self.min_delay = min_delay
-        self.max_delay = max_delay
         self.is_running = False
         self.current_iteration = 0
         
@@ -230,18 +211,16 @@ class ViewerBot:
                     pass
                 
                 self.current_iteration = i + 1
-                delay = random.uniform(self.min_delay, self.max_delay)
                 
                 # Update progress
                 running_tasks[task_id] = {
                     'status': 'running',
                     'current': self.current_iteration,
                     'total': self.iterations,
-                    'message': f'Visit {self.current_iteration}/{self.iterations} - Next delay: {delay:.2f}s'
+                    'message': f'Visit {self.current_iteration}/{self.iterations}'
                 }
                 
-                print(f"[{i+1}/{self.iterations}] Opened → sleeping for {delay:.2f}s")
-                time.sleep(delay)
+                print(f"[{i+1}/{self.iterations}] Opened")
                 
         except Exception as e:
             print(f"Error during execution: {e}")
@@ -287,7 +266,7 @@ async def start_bot(request: BotStartRequest):
     task_id = f"task_{int(time.time())}"
     
     # Create and start bot
-    bot = ViewerBot(request.url, request.iterations, request.minDelay, request.maxDelay)
+    bot = ViewerBot(request.url, request.iterations)
     
     # Run in separate thread
     thread = threading.Thread(target=bot.run, args=(task_id,))
@@ -298,9 +277,7 @@ async def start_bot(request: BotStartRequest):
         taskId=task_id,
         message="Bot started successfully",
         url=request.url,
-        iterations=request.iterations,
-        minDelay=request.minDelay,
-        maxDelay=request.maxDelay
+        iterations=request.iterations
     )
 
 @app.get("/api/status/{task_id}", response_model=TaskStatus)

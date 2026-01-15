@@ -10,8 +10,6 @@ const API_BASE_URL = 'https://viewerbot-8kru.onrender.com'; // For local develop
 interface FormData {
   url: string;
   iterations: number;
-  minDelay: number;
-  maxDelay: number;
 }
 
 interface TaskStatus {
@@ -24,9 +22,7 @@ interface TaskStatus {
 export default function ViewerBot() {
   const [formData, setFormData] = useState<FormData>({
     url: '',
-    iterations: 100,
-    minDelay: 1,
-    maxDelay: 5
+    iterations: 100
   });
   
   const [currentTask, setCurrentTask] = useState<string | null>(null);
@@ -170,45 +166,6 @@ export default function ViewerBot() {
                 disabled={isLoading || !!currentTask}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
               />
-            </div>
-
-            {/* Delay Inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="minDelay" className="block text-sm font-semibold text-black mb-2">
-                  Min Delay (seconds)
-                </label>
-                <input
-                  type="number"
-                  id="minDelay"
-                  name="minDelay"
-                  value={formData.minDelay}
-                  onChange={handleInputChange}
-                  min="0.1"
-                  step="0.1"
-                  required
-                  disabled={isLoading || !!currentTask}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="maxDelay" className="block text-sm font-semibold text-black mb-2">
-                  Max Delay (seconds)
-                </label>
-                <input
-                  type="number"
-                  id="maxDelay"
-                  name="maxDelay"
-                  value={formData.maxDelay}
-                  onChange={handleInputChange}
-                  min="0.1"
-                  step="0.1"
-                  required
-                  disabled={isLoading || !!currentTask}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
-                />
-              </div>
             </div>
 
             {/* Error Message */}

@@ -62,6 +62,7 @@ class HealthResponse(BaseModel):
 
 # Global variable to track running tasks
 running_tasks = {}
+active_drivers = {}  # Track active driver instances for cleanup
 
 class ViewerBot:
     def __init__(self, url, iterations):
@@ -142,6 +143,8 @@ class ViewerBot:
             'message': 'Starting browser...'
         }
         
+        driver = None  # Initialize driver variable
+        
         # Get Chrome options for current environment
         chrome_options = self.get_chrome_options()
         
@@ -150,6 +153,9 @@ class ViewerBot:
             print("Creating Chrome driver...")
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
+            
+            # Store driver reference for cleanup
+            active_drivers[task_id] = driver
             
             # Execute script to remove webdriver property (anti-detection)
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -170,6 +176,7 @@ class ViewerBot:
             try:
                 service = Service(ChromeDriverManager().install())
                 driver = webdriver.Chrome(service=service, options=chrome_options)
+                active_drivers[task_id] = driver  # Store driver reference
                 print("Fallback Chrome driver created successfully")
             except Exception as fallback_error:
                 print(f"Fallback also failed: {fallback_error}")
@@ -231,12 +238,17 @@ class ViewerBot:
                 'message': f'Error: {str(e)}'
             }
         finally:
-            try:
-                driver.quit()
-                print("✅ Browser closed")
-            except Exception as quit_error:
-                print(f"Error closing browser: {quit_error}")
-                pass
+            # CRITICAL: Always close the browser to prevent memory leaks
+            if driver:
+                try:
+                    driver.quit()
+                    print("✅ Browser closed")
+                except Exception as quit_error:
+                    print(f"Error closing browser: {quit_error}")
+            
+            # Remove from active drivers
+            if task_id in active_drivers:
+                del active_drivers[task_id]
             
             if self.is_running:
                 running_tasks[task_id] = {
@@ -299,6 +311,15 @@ async def stop_bot(task_id: str):
     if running_tasks[task_id]['status'] == 'running':
         running_tasks[task_id]['status'] = 'stopping'
         running_tasks[task_id]['message'] = 'Stopping...'
+        
+        # Force close the browser immediately to free memory
+        if task_id in active_drivers:
+            try:
+                active_drivers[task_id].quit()
+                print(f"Force closed browser for task {task_id}")
+                del active_drivers[task_id]
+            except Exception as e:
+                print(f"Error force closing browser: {e}")
     
     return {"message": "Stop signal sent"}
 
@@ -306,6 +327,28 @@ async def stop_bot(task_id: str):
 async def health_check():
     """Health check endpoint"""
     return HealthResponse(status="healthy", message="Viewer Bot API is running")
+
+@app.get("/api/cleanup")
+async def cleanup_resources():
+    """Force cleanup all active browser instances (emergency memory cleanup)"""
+    closed_count = 0
+    errors = []
+    
+    for task_id, driver in list(active_drivers.items()):
+        try:
+            driver.quit()
+            del active_drivers[task_id]
+            closed_count += 1
+            print(f"Cleaned up browser for task {task_id}")
+        except Exception as e:
+            errors.append(f"Task {task_id}: {str(e)}")
+            print(f"Error cleaning up task {task_id}: {e}")
+    
+    return {
+        "message": f"Cleanup completed. Closed {closed_count} browser(s)",
+        "closed": closed_count,
+        "errors": errors if errors else None
+    }
 
 if __name__ == "__main__":
     import uvicorn

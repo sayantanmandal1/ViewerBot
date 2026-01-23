@@ -194,40 +194,30 @@ class ViewerBot:
                     break
                 
                 # Navigate to the URL
-                print(f"[{i+1}/{self.iterations}] Visiting: {self.url}")
                 driver.get(self.url)
                 
-                # Wait for page to load properly (important for analytics)
-                time.sleep(3)
+                # Minimal wait for page load (analytics will still register)
+                time.sleep(0.5)
                 
-                # Simulate real user behavior
-                try:
-                    # Scroll down a bit to simulate reading
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight/4);")
-                    time.sleep(1)
-                    
-                    # Scroll to middle
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
-                    time.sleep(1)
-                    
-                    # Scroll back to top
-                    driver.execute_script("window.scrollTo(0, 0);")
-                    time.sleep(1)
-                except Exception as scroll_error:
-                    print(f"Scroll simulation failed: {scroll_error}")
-                    pass
+                # Optional: Quick scroll every 10th visit to look more natural
+                if i % 10 == 0:
+                    try:
+                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
+                        time.sleep(0.3)
+                    except:
+                        pass
                 
                 self.current_iteration = i + 1
                 
-                # Update progress
-                running_tasks[task_id] = {
-                    'status': 'running',
-                    'current': self.current_iteration,
-                    'total': self.iterations,
-                    'message': f'Visit {self.current_iteration}/{self.iterations}'
-                }
-                
-                print(f"[{i+1}/{self.iterations}] Opened")
+                # Update progress (only every 10 iterations to reduce overhead)
+                if i % 10 == 0 or i == self.iterations - 1:
+                    running_tasks[task_id] = {
+                        'status': 'running',
+                        'current': self.current_iteration,
+                        'total': self.iterations,
+                        'message': f'Visit {self.current_iteration}/{self.iterations}'
+                    }
+                    print(f"[{i+1}/{self.iterations}] Progress: {(i+1)/self.iterations*100:.1f}%")
                 
         except Exception as e:
             print(f"Error during execution: {e}")

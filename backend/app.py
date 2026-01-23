@@ -6,12 +6,14 @@ from pydantic import BaseModel, validator
 import time
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from typing import Optional
+import random
 
 app = FastAPI(title="Viewer Bot API", description="A simple viewer bot for websites", version="1.0.0")
 
@@ -28,6 +30,7 @@ app.add_middleware(
 class BotStartRequest(BaseModel):
     url: str
     iterations: int = 100
+    parallel_browsers: int = 3  # New: number of parallel browsers
     
     @validator('url')
     def validate_url(cls, v):
@@ -43,12 +46,19 @@ class BotStartRequest(BaseModel):
         if v <= 0 or v > 10000:
             raise ValueError('Iterations must be between 1 and 10000')
         return v
+    
+    @validator('parallel_browsers')
+    def validate_parallel_browsers(cls, v):
+        if v < 1 or v > 10:
+            raise ValueError('Parallel browsers must be between 1 and 10')
+        return v
 
 class BotStartResponse(BaseModel):
     taskId: str
     message: str
     url: str
     iterations: int
+    parallel_browsers: int
 
 class TaskStatus(BaseModel):
     status: str
@@ -63,15 +73,18 @@ class HealthResponse(BaseModel):
 # Global variable to track running tasks
 running_tasks = {}
 active_drivers = {}  # Track active driver instances for cleanup
+task_stop_flags = {}  # Track stop flags for each task
 
 class ViewerBot:
-    def __init__(self, url, iterations):
+    def __init__(self, url, iterations, parallel_browsers=3):
         self.url = url
         self.iterations = iterations
+        self.parallel_browsers = parallel_browsers
         self.is_running = False
         self.current_iteration = 0
+        self.counter_lock = threading.Lock()
         
-    def get_chrome_options(self):
+    def get_chrome_options(self, worker_id=0):
         """Get Chrome options based on environment"""
         chrome_options = Options()
         
@@ -79,43 +92,38 @@ class ViewerBot:
         is_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
         is_windows = platform.system() == 'Windows'
         
-        print(f"Environment: Docker={is_docker}, Windows={is_windows}")
-        
         # Basic headless setup
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
         
-        # Essential flags that don't break functionality
+        # Performance optimizations
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-plugins")
         chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--disable-images")  # Faster loading
+        chrome_options.add_argument("--blink-settings=imagesEnabled=false")
         
-        # Set user data directory based on environment
+        # Set user data directory based on environment with unique port per worker
         if is_docker:
-            chrome_options.add_argument("--user-data-dir=/app/chrome-data")
-            chrome_options.add_argument("--remote-debugging-port=9222")
+            chrome_options.add_argument(f"--user-data-dir=/app/chrome-data-{worker_id}")
+            chrome_options.add_argument(f"--remote-debugging-port={9222 + worker_id}")
             user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         elif is_windows:
-            # Use a temporary directory for Windows
             import tempfile
             temp_dir = tempfile.mkdtemp()
             chrome_options.add_argument(f"--user-data-dir={temp_dir}")
-            chrome_options.add_argument("--remote-debugging-port=9222")
+            chrome_options.add_argument(f"--remote-debugging-port={9222 + worker_id}")
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebDriver/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         else:
-            # Linux/Mac
-            chrome_options.add_argument("--user-data-dir=/tmp/chrome-data")
-            chrome_options.add_argument("--remote-debugging-port=9222")
+            chrome_options.add_argument(f"--user-data-dir=/tmp/chrome-data-{worker_id}")
+            chrome_options.add_argument(f"--remote-debugging-port={9222 + worker_id}")
             user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         
         chrome_options.add_argument(f"--user-agent={user_agent}")
         chrome_options.add_argument("--profile-directory=Default")
-        
-        # IMPORTANT: Keep JavaScript and images enabled for proper analytics
-        # DO NOT add: --disable-javascript, --disable-images
         
         # Prefs for a more realistic browser
         prefs = {
@@ -133,73 +141,39 @@ class ViewerBot:
         
         return chrome_options
         
-    def run(self, task_id):
-        """Run the viewer bot with progress tracking"""
-        self.is_running = True
-        running_tasks[task_id] = {
-            'status': 'running',
-            'current': 0,
-            'total': self.iterations,
-            'message': 'Starting browser...'
-        }
-        
-        driver = None  # Initialize driver variable
-        
-        # Get Chrome options for current environment
-        chrome_options = self.get_chrome_options()
+    def worker(self, worker_id, iterations_per_worker, task_id):
+        """Each worker runs its own browser instance"""
+        driver = None
         
         try:
-            # Try to create Chrome driver with webdriver-manager
-            print("Creating Chrome driver...")
+            # Get Chrome options for this worker
+            chrome_options = self.get_chrome_options(worker_id)
+            
+            # Create Chrome driver
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
             
-            # Store driver reference for cleanup
-            active_drivers[task_id] = driver
+            # Store driver reference
+            if task_id not in active_drivers:
+                active_drivers[task_id] = []
+            active_drivers[task_id].append(driver)
             
-            # Execute script to remove webdriver property (anti-detection)
+            # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            print("Chrome driver created successfully")
             
-        except Exception as e:
-            print(f"Failed to create Chrome driver: {e}")
-            print("Trying with minimal fallback options...")
-            
-            # Fallback with minimal options (like original try.py)
-            chrome_options = Options()
-            chrome_options.add_argument("--headless=new")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--remote-debugging-port=9223")
-            
-            try:
-                service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-                active_drivers[task_id] = driver  # Store driver reference
-                print("Fallback Chrome driver created successfully")
-            except Exception as fallback_error:
-                print(f"Fallback also failed: {fallback_error}")
-                running_tasks[task_id] = {
-                    'status': 'error',
-                    'current': 0,
-                    'total': self.iterations,
-                    'message': f'Failed to start browser: {str(fallback_error)}'
-                }
-                return
-        
-        try:
-            for i in range(self.iterations):
-                if not self.is_running:
+            for i in range(iterations_per_worker):
+                # Check stop flag
+                if task_id in task_stop_flags and task_stop_flags[task_id]:
+                    print(f"Worker {worker_id} stopping...")
                     break
                 
-                # Navigate to the URL
+                # Navigate to URL
                 driver.get(self.url)
                 
-                # Minimal wait for page load (analytics will still register)
+                # Minimal wait for page load
                 time.sleep(0.5)
                 
-                # Optional: Quick scroll every 10th visit to look more natural
+                # Optional: Quick scroll every 10th visit
                 if i % 10 == 0:
                     try:
                         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
@@ -207,18 +181,80 @@ class ViewerBot:
                     except:
                         pass
                 
-                self.current_iteration = i + 1
+                # Update counter
+                with self.counter_lock:
+                    self.current_iteration += 1
+                    current = self.current_iteration
                 
-                # Update progress (only every 10 iterations to reduce overhead)
-                if i % 10 == 0 or i == self.iterations - 1:
+                # Update progress every 10 iterations
+                if current % 10 == 0 or current == self.iterations:
                     running_tasks[task_id] = {
                         'status': 'running',
-                        'current': self.current_iteration,
+                        'current': current,
                         'total': self.iterations,
-                        'message': f'Visit {self.current_iteration}/{self.iterations}'
+                        'message': f'Visit {current}/{self.iterations}'
                     }
-                    print(f"[{i+1}/{self.iterations}] Progress: {(i+1)/self.iterations*100:.1f}%")
+            
+            return f"Worker {worker_id} completed"
+            
+        except Exception as e:
+            print(f"Worker {worker_id} error: {e}")
+            return f"Worker {worker_id} error: {str(e)}"
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+    
+    def run(self, task_id):
+        """Run the viewer bot with parallel browsers"""
+        self.is_running = True
+        task_stop_flags[task_id] = False
+        
+        running_tasks[task_id] = {
+            'status': 'running',
+            'current': 0,
+            'total': self.iterations,
+            'message': f'Starting {self.parallel_browsers} browsers...'
+        }
+        
+        try:
+            print(f"Starting {self.parallel_browsers} parallel browsers for {self.iterations} visits...")
+            
+            iterations_per_worker = self.iterations // self.parallel_browsers
+            remainder = self.iterations % self.parallel_browsers
+            
+            with ThreadPoolExecutor(max_workers=self.parallel_browsers) as executor:
+                futures = []
+                for i in range(self.parallel_browsers):
+                    # Distribute remainder among first workers
+                    iters = iterations_per_worker + (1 if i < remainder else 0)
+                    futures.append(executor.submit(self.worker, i + 1, iters, task_id))
                 
+                # Wait for all to complete
+                for future in as_completed(futures):
+                    result = future.result()
+                    print(result)
+            
+            # Check if stopped or completed
+            if task_stop_flags.get(task_id, False):
+                running_tasks[task_id] = {
+                    'status': 'stopped',
+                    'current': self.current_iteration,
+                    'total': self.iterations,
+                    'message': 'Task stopped by user'
+                }
+            else:
+                running_tasks[task_id] = {
+                    'status': 'completed',
+                    'current': self.iterations,
+                    'total': self.iterations,
+                    'message': f'✅ Completed all {self.iterations} visits!'
+                }
+            
+            print(f"✅ Finished all {self.iterations} iterations")
+            
         except Exception as e:
             print(f"Error during execution: {e}")
             running_tasks[task_id] = {
@@ -228,33 +264,17 @@ class ViewerBot:
                 'message': f'Error: {str(e)}'
             }
         finally:
-            # CRITICAL: Always close the browser to prevent memory leaks
-            if driver:
-                try:
-                    driver.quit()
-                    print("✅ Browser closed")
-                except Exception as quit_error:
-                    print(f"Error closing browser: {quit_error}")
-            
-            # Remove from active drivers
+            # Cleanup
             if task_id in active_drivers:
+                for driver in active_drivers[task_id]:
+                    try:
+                        driver.quit()
+                    except:
+                        pass
                 del active_drivers[task_id]
             
-            if self.is_running:
-                running_tasks[task_id] = {
-                    'status': 'completed',
-                    'current': self.iterations,
-                    'total': self.iterations,
-                    'message': f'✅ Completed all {self.iterations} visits!'
-                }
-                print(f"✅ Finished all {self.iterations} iterations")
-            else:
-                running_tasks[task_id] = {
-                    'status': 'stopped',
-                    'current': self.current_iteration,
-                    'total': self.iterations,
-                    'message': 'Task stopped by user'
-                }
+            if task_id in task_stop_flags:
+                del task_stop_flags[task_id]
     
     def stop(self):
         """Stop the bot"""
@@ -268,7 +288,7 @@ async def start_bot(request: BotStartRequest):
     task_id = f"task_{int(time.time())}"
     
     # Create and start bot
-    bot = ViewerBot(request.url, request.iterations)
+    bot = ViewerBot(request.url, request.iterations, request.parallel_browsers)
     
     # Run in separate thread
     thread = threading.Thread(target=bot.run, args=(task_id,))
@@ -279,7 +299,8 @@ async def start_bot(request: BotStartRequest):
         taskId=task_id,
         message="Bot started successfully",
         url=request.url,
-        iterations=request.iterations
+        iterations=request.iterations,
+        parallel_browsers=request.parallel_browsers
     )
 
 @app.get("/api/status/{task_id}", response_model=TaskStatus)
@@ -297,21 +318,22 @@ async def stop_bot(task_id: str):
     if task_id not in running_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Mark as stopped (the bot will check this flag)
+    # Set stop flag
     if running_tasks[task_id]['status'] == 'running':
+        task_stop_flags[task_id] = True
         running_tasks[task_id]['status'] = 'stopping'
-        running_tasks[task_id]['message'] = 'Stopping...'
+        running_tasks[task_id]['message'] = 'Stopping all browsers...'
         
-        # Force close the browser immediately to free memory
+        # Force close all browsers immediately
         if task_id in active_drivers:
-            try:
-                active_drivers[task_id].quit()
-                print(f"Force closed browser for task {task_id}")
-                del active_drivers[task_id]
-            except Exception as e:
-                print(f"Error force closing browser: {e}")
+            for driver in active_drivers[task_id]:
+                try:
+                    driver.quit()
+                    print(f"Force closed browser for task {task_id}")
+                except Exception as e:
+                    print(f"Error force closing browser: {e}")
     
-    return {"message": "Stop signal sent"}
+    return {"message": "Stop signal sent to all browsers"}
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
@@ -324,15 +346,27 @@ async def cleanup_resources():
     closed_count = 0
     errors = []
     
-    for task_id, driver in list(active_drivers.items()):
-        try:
-            driver.quit()
-            del active_drivers[task_id]
-            closed_count += 1
-            print(f"Cleaned up browser for task {task_id}")
-        except Exception as e:
-            errors.append(f"Task {task_id}: {str(e)}")
-            print(f"Error cleaning up task {task_id}: {e}")
+    for task_id, drivers in list(active_drivers.items()):
+        if isinstance(drivers, list):
+            for driver in drivers:
+                try:
+                    driver.quit()
+                    closed_count += 1
+                    print(f"Cleaned up browser for task {task_id}")
+                except Exception as e:
+                    errors.append(f"Task {task_id}: {str(e)}")
+                    print(f"Error cleaning up task {task_id}: {e}")
+        else:
+            # Handle old single driver format
+            try:
+                drivers.quit()
+                closed_count += 1
+                print(f"Cleaned up browser for task {task_id}")
+            except Exception as e:
+                errors.append(f"Task {task_id}: {str(e)}")
+                print(f"Error cleaning up task {task_id}: {e}")
+        
+        del active_drivers[task_id]
     
     return {
         "message": f"Cleanup completed. Closed {closed_count} browser(s)",

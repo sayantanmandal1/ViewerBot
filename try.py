@@ -8,8 +8,8 @@ from selenium.webdriver.common.by import By
 # ---------------- CONFIG ----------------
 URL = "https://github.com/sayantanmandal1"   # 🔁 PUT YOUR WEBSITE LINK HERE
 ITERATIONS = 1000
-MIN_DELAY = 0.5  # Reduced from 1
-MAX_DELAY = 2    # Reduced from 5
+MIN_DELAY = 1
+MAX_DELAY = 5
 
 # Path to your existing Chrome profile (Windows)
 CHROME_PROFILE_PATH = r"C:\Users\msaya\AppData\Local\Google\Chrome\User Data"
@@ -56,12 +56,11 @@ except Exception as e:
 try:
     for i in range(ITERATIONS):
         driver.get(URL)
-        
-        # Just wait for page load, no extra delay needed
-        time.sleep(0.5)  # Minimal wait for page load
-        
-        if (i + 1) % 50 == 0:  # Print every 50 iterations
-            print(f"[{i+1}/{ITERATIONS}] Progress: {((i+1)/ITERATIONS*100):.1f}%")
+
+        delay = random.uniform(MIN_DELAY, MAX_DELAY)
+        print(f"[{i+1}/{ITERATIONS}] Opened → sleeping for {delay:.2f}s")
+
+        time.sleep(delay)
 
 finally:
     driver.quit()

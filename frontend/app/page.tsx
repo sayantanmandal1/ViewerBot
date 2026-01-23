@@ -10,6 +10,7 @@ const API_BASE_URL = 'https://viewerbot-8kru.onrender.com'; // For local develop
 interface FormData {
   url: string;
   iterations: number;
+  parallel_browsers: number;
 }
 
 interface TaskStatus {
@@ -22,7 +23,8 @@ interface TaskStatus {
 export default function ViewerBot() {
   const [formData, setFormData] = useState<FormData>({
     url: '',
-    iterations: 100
+    iterations: 100,
+    parallel_browsers: 3
   });
   
   const [currentTask, setCurrentTask] = useState<string | null>(null);
@@ -166,6 +168,28 @@ export default function ViewerBot() {
                 disabled={isLoading || !!currentTask}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
               />
+            </div>
+
+            {/* Parallel Browsers Input */}
+            <div>
+              <label htmlFor="parallel_browsers" className="block text-sm font-semibold text-black mb-2">
+                Parallel Browsers (Speed Boost 🚀)
+              </label>
+              <input
+                type="number"
+                id="parallel_browsers"
+                name="parallel_browsers"
+                value={formData.parallel_browsers}
+                onChange={handleInputChange}
+                min="1"
+                max="10"
+                required
+                disabled={isLoading || !!currentTask}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-black"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                More browsers = faster completion. Recommended: 3-5 browsers
+              </p>
             </div>
 
             {/* Error Message */}
